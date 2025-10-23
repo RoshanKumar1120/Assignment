@@ -20,7 +20,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const repoPath = path.join(process.cwd(), repoName);
 
   try {
-    // Remove old repo if exists
+    // Remove old cloned repo if exists
     if (fs.existsSync(repoPath)) {
       fs.rmSync(repoPath, { recursive: true, force: true });
     }
@@ -31,16 +31,28 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Clone the repo
     await exec(`git clone "${authRepoUrl}" "${repoPath}"`);
 
-    // Check Dockerfile
-    const dockerfilePath = path.join(repoPath, "Dockerfile");
-  if (!fs.existsSync(dockerfilePath) || !fs.lstatSync(dockerfilePath).isFile()) {
-    return res.status(400).json({ error: "Dockerfile not found or is not a file." });
-  }
+    // Detect Dockerfile location
+    const possibleDockerfilePaths = [
+      path.join(repoPath, "Dockerfile"),               // root
+      path.join(repoPath, "frontend", "Dockerfile"),   // frontend folder
+      path.join(repoPath, "backend", "Dockerfile"),    // backend folder
+    ];
 
+    let dockerfileDir = "";
+    for (const p of possibleDockerfilePaths) {
+      if (fs.existsSync(p) && fs.lstatSync(p).isFile()) {
+        dockerfileDir = path.dirname(p);
+        break;
+      }
+    }
 
-    // Build image
+    if (!dockerfileDir) {
+      return res.status(400).json({ error: "Dockerfile not found or is not a file." });
+    }
+
+    // Build Docker image
     const tagName = imageName ? imageName : "myimage:latest";
-    const { stdout, stderr } = await exec(`docker build -t ${tagName} "${repoPath}"`);
+    const { stdout, stderr } = await exec(`docker build -t ${tagName} "${dockerfileDir}"`);
 
     return res.status(200).json({
       message: `Docker image '${tagName}' built successfully!`,
