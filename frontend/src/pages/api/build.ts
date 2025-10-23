@@ -33,9 +33,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // Check Dockerfile
     const dockerfilePath = path.join(repoPath, "Dockerfile");
-    if (!fs.existsSync(dockerfilePath)) {
-      return res.status(400).json({ error: "Dockerfile not found in the repo root." });
-    }
+  if (!fs.existsSync(dockerfilePath) || !fs.lstatSync(dockerfilePath).isFile()) {
+    return res.status(400).json({ error: "Dockerfile not found or is not a file." });
+  }
+
 
     // Build image
     const tagName = imageName ? imageName : "myimage:latest";
